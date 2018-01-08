@@ -1,0 +1,147 @@
+﻿<Graph ClassName="ImportHubspotMassProcess" Source="#CDATA" IsNew="True" FileType="NewGraph">
+    <CDATA name="Source"><![CDATA[using System;
+using PX.Data;
+using PX.Api;
+using System.Collections.Generic;
+using System.Collections;
+
+namespace PX.Objects.HS
+{
+    public class HubstopProviderTypeName : Constant<string>
+    {
+        public HubstopProviderTypeName() : base(typeof(PX.DataSync.HubSpot.HSSYProvider).FullName)
+        {
+        }
+    }
+
+    public class PXSYMappingHubspotActiveSelector : PXSYMappingSelector
+    {
+        
+        public PXSYMappingHubspotActiveSelector()
+            : base(typeof(SYMappingActive.name))
+        { }
+
+        protected override IEnumerable GetRecords()
+        {
+            PXView selector = new PXView(this._Graph, true, PXSelect<SYMappingHubspotActive,
+                                                                Where<SYMappingActive.isActive,
+                                                                    Equal<True>,
+                                                                And<SYMappingActive.mappingType,
+                                                                    Equal<Current<SYMappingActive.mappingType>>>>>.GetCommand());
+
+            return PXSYMappingSelector.GetMappings<SYMappingHubspotActive>(selector);
+        }
+
+
+        //Note: PXSYMappingSelector.GetMappings won't work with PXSelectJoin so using a projection to filter to only HubspotProvider
+        [Serializable]
+        [PXBreakInheritance]
+        [PXProjection(typeof(Select2<SYMappingActive,
+                InnerJoin<SYProvider,
+                    On<SYMappingActive.providerID,
+                        Equal<SYProvider.providerID>>>,
+                Where<SYProvider.providerType, Equal<HubstopProviderTypeName>>>))]
+        public class SYMappingHubspotActive : SYMappingActive
+        {
+        }
+    }
+
+    public class HubSpotSYImportProcess : SYImportProcess
+    {
+        public new PXSave<SYMappingActive> Save;
+        public PXInsert<SYMappingActive> Insert;
+        public new PXCancel<SYMappingActive> Cancel;
+        public PXFirst<SYMappingActive> First;
+        public PXPrevious<SYMappingActive> Prev;
+        public PXNext<SYMappingActive> Next;
+        public PXLast<SYMappingActive> Last;
+
+        public PXSelectJoin<SYMappingActive,
+                    InnerJoin<SYProvider,
+                        On<SYMappingActive.providerID,
+                            Equal<SYProvider.providerID>>>,
+                    Where<SYMappingActive.mappingType,
+                            Equal<SYMappingActive.mappingType.typeImport>,
+                    And<SYMappingActive.isActive,
+                        Equal<True>,
+                    And<SYProvider.providerType,
+                        Equal<HubstopProviderTypeName>>>>> MappingsSingle;
+
+        public HubSpotSYImportProcess()
+        {
+            PXUIFieldAttribute.SetEnabled<SYMappingActive.name>(MappingsSingle.Cache, null, true);
+        }
+        protected override void SYMappingActive_RowSelected(PXCache cache, PXRowSelectedEventArgs e)
+        {
+            var row = (SYMappingActive)e.Row;
+            if (row == null)
+                return;
+
+            //Note: Populating dynamic Columns in the Grid. 
+            var operation = this.Operation.Current;
+            if (operation.MappingID != row.MappingID)
+            {
+                operation.MappingID = row.MappingID;
+                this.GenerateDynamicColumns();
+            }
+
+
+            base.SYMappingActive_RowSelected(cache, e);
+        }
+
+        protected override void SYImportOperation_RowSelected(PXCache sender, PXRowSelectedEventArgs e)
+        {
+            // do not delete this override! (Raises NullRef exception)
+        }
+
+        [PXMergeAttributes(Method = MergeMethod.Merge)]
+        [PXSYMappingHubspotActiveSelector]
+        protected virtual void SYMappingActive_Name_CacheAttached(PXCache sender)
+        {
+        }
+    }
+}
+
+
+//#region Import
+//public PXAction<CABankStatement> import;
+//[PXUIField(DisplayName = Messages.ImportStatement, MapEnableRights = PXCacheRights.Update, MapViewRights = PXCacheRights.Update, Enabled = true)]
+//[PXProcessButton]
+//public virtual IEnumerable Import(PXAdapter adapter)
+//{
+//    if (PXLongOperation.Exists(UID))
+//    {
+//        throw new ApplicationException(GL.Messages.PrevOperationNotCompleteYet);
+//    }
+
+//    CABankStatement doc = this.BankStatement.Current;
+//    if (doc != null && doc.Released == true && doc.Hold == false)
+//    {
+//        string importScenatioName = "Import Bank Statement MOM";
+//        SYMapping map = PXSelect<SYMapping, Where<SYMapping.name, Equal<Required<SYMapping.name>>>>.Select(this, importScenatioName);
+
+//        /*if (map!= null && map.MappingID!= null)
+//        {
+//            string defaultFileName = 
+//            PXLongOperation.StartOperation(this, delegate()
+//            {
+
+//                PX.Api.SYImportProcess.RunScenario(map.Name,
+//                    new PX.Api.PXSYParameter(ExportProviderParams.FileName, defaultFileName),
+//                    new PX.Api.PXSYParameter(ExportProviderParams.BatchNbr, doc.BatchNbr)
+//                    //,
+//                    //new PX.Api.PXSYParameter(ExportProviderParams.BatchSequenceStartingNbr, "0000")
+//                    );
+//            });
+//        }
+//        else
+//        {
+//            throw new PXException(Messages.CABatchExportProviderIsNotConfigured);
+//        }*/
+//    }
+
+//    return adapter.Get();
+//}
+
+//#endregion]]></CDATA>
+</Graph>
