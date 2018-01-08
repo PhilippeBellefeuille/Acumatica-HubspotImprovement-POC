@@ -6,7 +6,7 @@ using System.Collections;
 using PX.Data;
 using PX.Api;
 using PX.DataSync.HubSpot;
-
+using Newtonsoft.Json;
 
 namespace PX.Objects.HS
 {
@@ -37,7 +37,6 @@ namespace PX.Objects.HS
             return PXSYMappingSelector.GetMappings<SYMappingHubspotActive>(selector);
         }
 
-
         //Note: PXSYMappingSelector.GetMappings won't work with PXSelectJoin so using a projection to filter to only HubspotProvider
         [Serializable]
         [PXBreakInheritance]
@@ -51,15 +50,125 @@ namespace PX.Objects.HS
         }
     }
 
+    public class PXSYHubspotListIDAttribute : PXCustomSelectorAttribute
+    {
+        public class HSContactList : IBqlTable
+        {
+            #region ListID 
+            public abstract class listId : IBqlField { }
+
+            [PXInt(IsKey = true)]
+            [PXUIField(DisplayName = "List ID", Visible = false)]
+            public virtual int? ListID { get; set; }
+            #endregion
+
+            #region ListName 
+            public abstract class listName : IBqlField { }
+
+            [PXString]
+            [PXUIField(DisplayName = "Name", Visibility = PXUIVisibility.SelectorVisible)]
+            public virtual string ListName { get; set; }
+            #endregion
+        }
+
+        protected Type _MappingName;
+
+        public PXSYHubspotListIDAttribute(Type mappingName) : base(typeof(HSContactList.listId))
+        {
+            _MappingName = mappingName;
+        }
+
+        public IEnumerable GetRecords()
+        {
+            PXCache cache = this._Graph.Caches[BqlCommand.GetItemType(_MappingName)];
+
+            if (cache.Current == null)
+                yield break;
+
+            string providerName = (string)cache.GetValue(cache.Current, _MappingName.Name);
+
+            //var providerRecord = (SYProvider)PXSelect<SYProvider, 
+            //                    Where<SYProvider.name, 
+            //                        Equal<Required<SYProvider.name>>>>.Select(_Graph, providerName);
+
+            var mapping = (SYMappingActive)PXSelect<SYMappingActive,
+                                Where<SYMappingActive.name,
+                                    Equal<Required<SYMappingActive.name>>>>.Select(_Graph, providerName);
+
+            if (mapping != null && mapping.ProviderID.HasValue)
+            {
+                var syProvider = SYProviderMaint.GetProvider(mapping.ProviderID.Value);
+                if (!(syProvider is HSImpSYProvider))
+                    throw new PXException(Messages.SYProviderIsNotHubspotProvider);
+
+                var hubspotProvider = (HSImpSYProvider)syProvider;
+
+                foreach(var contactList in hubspotProvider.GetAllContactList())
+                {
+                    yield return new HSContactList()
+                    {
+                        ListID = contactList.listId,
+                        ListName = contactList.name
+                    };
+                }
+            }
+        }
+    }
+
     public class HSImpSYProvider : HSSYProvider
     {
         //Note: Can't access it because private so copying it for now
+        protected const string _HapikeyParam = "Hapikey";
+        protected const string _UrlParam = "URL";
         protected const string _ContactListIDParam = "HubSpotList";
+        protected const string _PortalIDParam = "PortalID";
+        protected const string _ClearHubListAfterImport = "ClearHubListAfterImport";
+        protected const String _HubSpotDelay = "HubSpotDelay";
+        protected const String _Contacts = "Contacts";
+        protected const int _NumerofContactinRequest = 100;
+        protected const int _NumerofListinRequest = 20;
 
         protected override List<PXStringState> FillParameters()
         {
             List<PXStringState> ret = base.FillParameters().Where(prm => prm.Name != _ContactListIDParam).ToList();
             return ret;
+        }
+
+        //Note: Exctacted from the base function  GetCurrentContactLists(bool IsImport = false) 
+        public List<ContactList> GetAllContactList()
+        {
+            var contactList = new List<ContactList>();
+
+            string Resource = string.Format("contacts/v1/lists?count={0}&hapikey={1}",
+                _NumerofListinRequest, GetParameter(_HapikeyParam));
+
+            var response = HubRequestGet(Resource);
+            var listcontactList = JsonConvert.DeserializeObject<ListContactList>(response.Content);
+            contactList.AddRange(listcontactList.lists);
+            int currentstartlist = 0;
+
+            while (listcontactList.has_more == true)
+            {
+                int HubSpotDelay = 1;
+                int.TryParse(GetParameter(_HubSpotDelay), out HubSpotDelay);
+                System.Threading.Thread.Sleep(HubSpotDelay * 1000);
+
+                currentstartlist = currentstartlist + _NumerofListinRequest;
+                Resource = string.Format("contacts/v1/lists?count={0}&hapikey={1}&offset={2}",
+                    _NumerofListinRequest, GetParameter(_HapikeyParam), currentstartlist);
+
+                response = HubRequestGet(Resource);
+                listcontactList = JsonConvert.DeserializeObject<ListContactList>(response.Content);
+
+                if (listcontactList == null || listcontactList.has_more == null || listcontactList.lists == null)
+                {
+                    var error = JsonConvert.DeserializeObject<HubExportError>(response.Content);
+                    throw new PXException(error.message);
+                }
+                contactList.AddRange(listcontactList.lists);
+            }
+
+            return contactList;
         }
 
         public override string ProviderName
@@ -72,9 +181,32 @@ namespace PX.Objects.HS
     public static class Messages
     {
         public const string HubSpotProviderImp = "Hubspot Provider 2.0";
+
+        public const string SYProviderIsNotHubspotProvider = "Data Provider is not Hubspot";
     }
 
     #endregion
+
+    public class HubSpotSYImportFilter : IBqlTable
+    {
+        #region MappingName
+        public abstract class mappingName : IBqlField { }
+        [PXString(128, IsUnicode = true, InputMask = "")]
+        [PXDefault]
+        [PXUIField(DisplayName = "Name", Visibility = PXUIVisibility.SelectorVisible)]
+        [PXSYMappingHubspotActiveSelector]
+        public virtual string MappingName { get; set; }
+        #endregion
+
+        #region HubspotListID
+        public abstract class hubspotListID : IBqlField { }
+
+        [PXInt]
+        [PXUIField(DisplayName = "HubSpot List", Visibility = PXUIVisibility.SelectorVisible)]
+        [PXSYHubspotListID(typeof(mappingName))]
+        public virtual int? HubspotListID { get; set; }
+        #endregion
+    }
 
     public class HubSpotSYImportProcess : SYImportProcess
     {
@@ -85,6 +217,8 @@ namespace PX.Objects.HS
         public PXPrevious<SYMappingActive> Prev;
         public PXNext<SYMappingActive> Next;
         public PXLast<SYMappingActive> Last;
+
+        public PXFilter<HubSpotSYImportFilter> Filter;
 
         public PXSelectJoin<SYMappingActive,
                     InnerJoin<SYProvider,
@@ -114,8 +248,7 @@ namespace PX.Objects.HS
                 operation.MappingID = row.MappingID;
                 this.GenerateDynamicColumns();
             }
-
-
+            
             base.SYMappingActive_RowSelected(cache, e);
         }
 
