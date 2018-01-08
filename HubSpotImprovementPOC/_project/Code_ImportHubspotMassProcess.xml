@@ -1,22 +1,27 @@
 ﻿<Graph ClassName="ImportHubspotMassProcess" Source="#CDATA" IsNew="True" FileType="NewGraph">
     <CDATA name="Source"><![CDATA[using System;
-using PX.Data;
-using PX.Api;
+using System.Linq;
 using System.Collections.Generic;
 using System.Collections;
+using PX.Data;
+using PX.Api;
+using PX.DataSync.HubSpot;
+
 
 namespace PX.Objects.HS
 {
+    #region Descriptor
+
     public class HubstopProviderTypeName : Constant<string>
     {
-        public HubstopProviderTypeName() : base(typeof(PX.DataSync.HubSpot.HSSYProvider).FullName)
+        public HubstopProviderTypeName() : base(typeof(HSImpSYProvider).FullName)
         {
         }
     }
 
     public class PXSYMappingHubspotActiveSelector : PXSYMappingSelector
     {
-        
+
         public PXSYMappingHubspotActiveSelector()
             : base(typeof(SYMappingActive.name))
         { }
@@ -45,6 +50,31 @@ namespace PX.Objects.HS
         {
         }
     }
+
+    public class HSImpSYProvider : HSSYProvider
+    {
+        //Note: Can't access it because private so copying it for now
+        protected const string _ContactListIDParam = "HubSpotList";
+
+        protected override List<PXStringState> FillParameters()
+        {
+            List<PXStringState> ret = base.FillParameters().Where(prm => prm.Name != _ContactListIDParam).ToList();
+            return ret;
+        }
+
+        public override string ProviderName
+        {
+            get { return PX.Data.PXMessages.Localize(Messages.HubSpotProviderImp); }
+        }
+    }
+
+    [PX.Common.PXLocalizable()]
+    public static class Messages
+    {
+        public const string HubSpotProviderImp = "Hubspot Provider 2.0";
+    }
+
+    #endregion
 
     public class HubSpotSYImportProcess : SYImportProcess
     {
