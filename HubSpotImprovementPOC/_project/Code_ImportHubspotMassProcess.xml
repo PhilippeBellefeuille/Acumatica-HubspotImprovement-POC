@@ -7,6 +7,7 @@ using PX.Data;
 using PX.Api;
 using PX.DataSync.HubSpot;
 using Newtonsoft.Json;
+using PX.Common;
 
 namespace PX.Objects.HS
 {
@@ -80,37 +81,20 @@ namespace PX.Objects.HS
 
         public IEnumerable GetRecords()
         {
-            PXCache cache = this._Graph.Caches[BqlCommand.GetItemType(_MappingName)];
+            PXCache cache = _Graph.Caches[BqlCommand.GetItemType(_MappingName)];
 
             if (cache.Current == null)
                 yield break;
 
-            string providerName = (string)cache.GetValue(cache.Current, _MappingName.Name);
+            string mappingName = (string)cache.GetValue(cache.Current, _MappingName.Name);
 
-            //var providerRecord = (SYProvider)PXSelect<SYProvider, 
-            //                    Where<SYProvider.name, 
-            //                        Equal<Required<SYProvider.name>>>>.Select(_Graph, providerName);
-
-            var mapping = (SYMappingActive)PXSelect<SYMappingActive,
-                                Where<SYMappingActive.name,
-                                    Equal<Required<SYMappingActive.name>>>>.Select(_Graph, providerName);
-
-            if (mapping != null && mapping.ProviderID.HasValue)
+            foreach (var contactList in HSImpSYProvider.ContactListProvider.GetContactLists(mappingName))
             {
-                var syProvider = SYProviderMaint.GetProvider(mapping.ProviderID.Value);
-                if (!(syProvider is HSImpSYProvider))
-                    throw new PXException(Messages.SYProviderIsNotHubspotProvider);
-
-                var hubspotProvider = (HSImpSYProvider)syProvider;
-
-                foreach(var contactList in hubspotProvider.GetAllContactList())
+                yield return new HSContactList()
                 {
-                    yield return new HSContactList()
-                    {
-                        ListID = contactList.listId,
-                        ListName = contactList.name
-                    };
-                }
+                    ListID = contactList.listId,
+                    ListName = contactList.name
+                };
             }
         }
     }
@@ -170,6 +154,53 @@ namespace PX.Objects.HS
 
             return contactList;
         }
+
+        public class ContactListProvider
+        {
+            public static IEnumerable<ContactList> GetContactLists(string mappingName)
+            {
+                return PXDatabase.GetSlot<Definition, Definition.Parameters>(mappingName, new Definition.Parameters(mappingName), typeof(ContactList)).ContactLists;
+            }
+
+            private class Definition : IPrefetchable<Definition.Parameters>
+            {
+                public class Parameters
+                {
+                    public readonly string MappingName;
+
+                    public Parameters(string mappingName)
+                    {
+                        this.MappingName = mappingName;
+                    }
+                }
+
+                public List<ContactList> ContactLists;
+
+                public void Prefetch(Parameters parameters)
+                {
+                    ContactLists = new List<ContactList>();
+
+                    var mapping = (SYMappingActive)PXSelect<SYMappingActive,
+                                                        Where<SYMappingActive.name,
+                                                            Equal<Required<SYMappingActive.name>>>>.Select(new PXGraph(), parameters.MappingName);
+
+                    if (mapping != null && mapping.ProviderID.HasValue)
+                    {
+                        var syProvider = SYProviderMaint.GetProvider(mapping.ProviderID.Value);
+                        if (!(syProvider is HSImpSYProvider))
+                            throw new PXException(Messages.SYProviderIsNotHubspotProvider);
+
+                        var hubspotProvider = (HSImpSYProvider)syProvider;
+
+                        foreach (var contactList in hubspotProvider.GetAllContactList())
+                        {
+                            ContactLists.Add(contactList);
+                        }
+                    }
+                }
+            }
+        }
+
 
         public override string ProviderName
         {
@@ -248,7 +279,7 @@ namespace PX.Objects.HS
                 operation.MappingID = row.MappingID;
                 this.GenerateDynamicColumns();
             }
-            
+
             base.SYMappingActive_RowSelected(cache, e);
         }
 
