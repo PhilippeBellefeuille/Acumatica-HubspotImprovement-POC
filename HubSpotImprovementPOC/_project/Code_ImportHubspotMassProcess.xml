@@ -33,7 +33,7 @@ namespace PX.Objects.HS
                                                                 Where<SYMappingActive.isActive,
                                                                     Equal<True>,
                                                                 And<SYMappingActive.mappingType,
-                                                                    Equal<Current<SYMappingActive.mappingType>>>>>.GetCommand());
+                                                                    Equal<SYMappingActive.mappingType.typeImport>>>>.GetCommand());
 
             return PXSYMappingSelector.GetMappings<SYMappingHubspotActive>(selector);
         }
@@ -241,31 +241,13 @@ namespace PX.Objects.HS
 
     public class HubSpotSYImportProcess : SYImportProcess
     {
-        public new PXSave<SYMappingActive> Save;
-        public PXInsert<SYMappingActive> Insert;
-        public new PXCancel<SYMappingActive> Cancel;
-        public PXFirst<SYMappingActive> First;
-        public PXPrevious<SYMappingActive> Prev;
-        public PXNext<SYMappingActive> Next;
-        public PXLast<SYMappingActive> Last;
+        public new PXSave<HubSpotSYImportFilter> Save;
+        public new PXCancel<HubSpotSYImportFilter> Cancel;
 
         public PXFilter<HubSpotSYImportFilter> Filter;
 
-        public PXSelectJoin<SYMappingActive,
-                    InnerJoin<SYProvider,
-                        On<SYMappingActive.providerID,
-                            Equal<SYProvider.providerID>>>,
-                    Where<SYMappingActive.mappingType,
-                            Equal<SYMappingActive.mappingType.typeImport>,
-                    And<SYMappingActive.isActive,
-                        Equal<True>,
-                    And<SYProvider.providerType,
-                        Equal<HubstopProviderTypeName>>>>> MappingsSingle;
+        public PXSelect<SYMappingActive, Where<SYMappingActive.name, Equal<Current<HubSpotSYImportFilter.mappingName>>>> MappingsSingle;
 
-        public HubSpotSYImportProcess()
-        {
-            PXUIFieldAttribute.SetEnabled<SYMappingActive.name>(MappingsSingle.Cache, null, true);
-        }
         protected override void SYMappingActive_RowSelected(PXCache cache, PXRowSelectedEventArgs e)
         {
             var row = (SYMappingActive)e.Row;

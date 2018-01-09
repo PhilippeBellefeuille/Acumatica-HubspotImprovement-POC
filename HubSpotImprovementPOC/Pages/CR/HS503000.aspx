@@ -5,42 +5,27 @@
 <%@ MasterType VirtualPath="~/MasterPages/FormDetail.master" %>
 <asp:Content ID="cont1" ContentPlaceHolderID="phDS" runat="Server">
     <px:PXDataSource ID="ds" runat="server" Visible="True" Width="100%" TypeName="PX.Objects.HS.HubSpotSYImportProcess"
-        PrimaryView="MappingsSingle">
+        PrimaryView="Filter">
         <CallbackCommands>
-            <px:PXDSCallbackCommand Name="Insert" PostData="Self" />
             <px:PXDSCallbackCommand CommitChanges="True" Name="Save" />
-            <px:PXDSCallbackCommand Name="First" PostData="Self" StartNewGroup="True" />
-            <px:PXDSCallbackCommand Name="Last" PostData="Self" />
         </CallbackCommands>
     </px:PXDataSource>
 </asp:Content>
 <asp:Content ID="cont2" ContentPlaceHolderID="phF" runat="Server">
     <px:PXFormView ID="form" runat="server" DataSourceID="ds" Style="z-index: 100" Width="100%"
-        DataMember="MappingsSingle" Caption="Selection" FilesIndicator="True" NoteIndicator="True">
+        DataMember="Filter" Caption="Selection" FilesIndicator="True" NoteIndicator="True">
         <Template>
-
             <px:PXLayoutRule runat="server" StartColumn="True" LabelsWidth="SM" ControlSize="M" />
-            <px:PXSelector runat="server" DataField="Name" AutoAdjustColumns="True"
-                ID="edName" DataSourceID="ds">
-                <AutoCallBack Command="Refresh" Target="form">
-                </AutoCallBack>
-            </px:PXSelector>
-            <px:PXTextEdit ID="edScreenDescription" runat="server" DataField="ScreenDescription"></px:PXTextEdit>
-            <px:PXLayoutRule runat="server" ControlSize="M" LabelsWidth="SM" StartColumn="True">
-            </px:PXLayoutRule>
-            <px:PXFormView ID="formFilter" runat="server" DataSourceID="ds" DataMember="Filter" SkinID="Preview">
+            <px:PXSelector ID="edMappingName" runat="server" DataSourceID="ds" DataField="MappingName" AutoAdjustColumns="True" CommitChanges="True" />
+            <px:PXSelector ID="edHubspotList" runat="server" DataSourceID="ds" DataField="HubspotListID" AutoAdjustColumns="True" CommitChanges="True" AutoRefresh="True" />
+            <px:PXLayoutRule runat="server" StartGroup="True" StartColumn="True" />
+            <px:PXFormView ID="formMappingsSingle" runat="server" DataSourceID="ds" DataMember="MappingsSingle" SkinID="Transparent">
                 <Template>
-                    <px:PXSelector ID="edMappingName" runat="server" DataSourceID="ds" DataField="MappingName" AutoAdjustColumns="True" CommitChanges="True" />
-                    <px:PXSelector ID="edHubspotList" runat="server" DataSourceID="ds" DataField="HubspotListID" AutoAdjustColumns="True" CommitChanges="True" />
+                    <px:PXTextEdit ID="edScreenDescription" runat="server" DataField="ScreenDescription"></px:PXTextEdit>
                 </Template>
+                <ContentLayout ControlSize="XM" LabelsWidth="SM" OuterSpacing="None" />
+                <ContentStyle BackColor="Transparent" BorderStyle="None" />
             </px:PXFormView>
-            <%--			<px:PXDropDown runat="server" Enabled="False" DataField="Status" AllowNull="False"
-				ID="edStatus" />
-			<px:PXNumberEdit runat="server" Enabled="False" DataField="NbrRecords" AllowNull="False" ID="edNbrRecords" Size="M" />
-			
-            <px:PXLayoutRule runat="server" ControlSize="M" LabelsWidth="SM" StartColumn="True" SuppressLabel="True" />
-            <px:PXCheckBox runat="server" ID="mappingTabVisibility" DataField="IsSimpleMapping" />
-            <px:PXCheckBox runat="server" ID="chkDiscardPrevious" DataField="DiscardResult" />--%>
         </Template>
     </px:PXFormView>
 </asp:Content>
